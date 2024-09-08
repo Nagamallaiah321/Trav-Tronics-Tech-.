@@ -1,0 +1,79 @@
+spring.datasource.url=jdbc:h2:mem:testdb
+spring.datasource.driver-class-name=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=password
+spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
+spring.h2.console.enabled=true
+package com.example.ecommerce.service;
+
+import com.example.ecommerce.model.Cart;
+import com.example.ecommerce.model.CartItem;
+import com.example.ecommerce.model.Product;
+import com.example.ecommerce.repository.CartRepository;
+import com.example.ecommerce.repository.ProductRepository;
+import com.example.ecommerce.exception.ResourceNotFoundException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
+
+@Service
+public class CartService {
+
+    @Autowired
+    private CartRepository cartRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Transactional
+    public Cart getCart(Long userId) {
+        return cartRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cart not found for user " + userId));
+    }
+
+    @Transactional
+    public void addItemToCart(Long userId, Long productId, Integer quantity) {
+        Cart cart = getCart(userId);
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id " + productId));
+
+        CartItem cartItem = cart.getItems().stream()
+                .filter(item -> item.getProduct().getId().equals(productId))
+                .findFirst()
+                .orElse(new CartItem());
+
+        if (cartItem.getId() == null) {
+            cartItem.setProduct(product);
+            cartItem.setCart(cart);
+            cart.getItems().add(cartItem);
+        }
+        cartItem.setQuantity(quantity);
+        cartRepository.save(cart);
+    }
+
+    @Transactional
+    public void removeItemFromCart(Long userId, Long productId) {
+        Cart cart = getCart(userId);
+        CartItem cartItem = cart.getItems().stream()
+                .filter(item -> item.getProduct().getId().equals(productId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Cart item not found"));
+
+        cart.getItems().remove(cartItem);
+        cartRepository.save(cart);
+    }
+}
+package com.example.ecommerce;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class EcommerceApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(EcommerceApplication.class, args);
+    }
+}
